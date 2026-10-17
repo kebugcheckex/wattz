@@ -2,13 +2,15 @@ package dubrowgn.wattz
 
 import android.Manifest.permission
 import android.app.Activity
-import android.app.ActivityManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -20,8 +22,15 @@ const val intervalMs = 1_250L
 const val noteChannelId = "$namespace.status"
 const val noteId = 1
 
+// binding keeps StatusService alive while an activity is visible, even when the indicator is disabled
+class StatusServiceConnection : ServiceConnection {
+    override fun onServiceConnected(name: ComponentName?, service: IBinder?) {}
+    override fun onServiceDisconnected(name: ComponentName?) {}
+}
+
 class MainActivity : Activity() {
     private val batteryReceiver = BatteryDataReceiver()
+    private val serviceConnection = StatusServiceConnection()
 
     private lateinit var chargeLevel: TextView
     private lateinit var charging: TextView
@@ -84,18 +93,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun serviceRunning(): Boolean {
-        val serviceName = StatusService::class.java.name
-        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        for (info in activityManager.getRunningServices(Int.MAX_VALUE)) {
-            if (info.service.className == serviceName) {
-                return true
-            }
-        }
-
-        return false
-    }
-
     private fun initUi() {
         setContentView(R.layout.activity_main)
 
@@ -112,11 +109,16 @@ class MainActivity : Activity() {
 
 
     private fun init() {
-        if (getPerm(permission.POST_NOTIFICATIONS) == Perm.NotAsked)
-            requestPerm(permission.POST_NOTIFICATIONS)
+        val showIndicator = getSharedPreferences(settingsName, MODE_PRIVATE)
+            .getBoolean("showIndicator", true)
 
-        if (!serviceRunning())
+        if (showIndicator) {
+            if (getPerm(permission.POST_NOTIFICATIONS) == Perm.NotAsked)
+                requestPerm(permission.POST_NOTIFICATIONS)
+
+            // safe to call if the service is already running
             startForegroundService(Intent(this, StatusService::class.java))
+        }
 
         initUi()
     }
@@ -133,6 +135,22 @@ class MainActivity : Activity() {
         debug("onDestroy()")
 
         super.onDestroy()
+    }
+
+    override fun onStart() {
+        debug("onStart()")
+
+        super.onStart()
+
+        bindService(Intent(this, StatusService::class.java), serviceConnection, BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        debug("onStop()")
+
+        unbindService(serviceConnection)
+
+        super.onStop()
     }
 
     override fun onPause() {

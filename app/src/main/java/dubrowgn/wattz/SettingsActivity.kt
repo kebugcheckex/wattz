@@ -18,6 +18,7 @@ const val settingsUpdateInd = "$namespace.settings-update-ind"
 
 class SettingsActivity : Activity() {
     private val batteryReceiver = BatteryDataReceiver()
+    private val serviceConnection = StatusServiceConnection()
 
     private lateinit var charging: TextView
     private lateinit var currentScalar: RadioGroup
@@ -25,6 +26,8 @@ class SettingsActivity : Activity() {
     @SuppressLint("UseSwitchCompatOrMaterialCode")
     private lateinit var invertCurrent: Switch
     private lateinit var power: TextView
+    @SuppressLint("UseSwitchCompatOrMaterialCode")
+    private lateinit var showIndicator: Switch
 
     private fun debug(msg: String) {
         Log.d(this::class.java.name, msg)
@@ -65,6 +68,7 @@ class SettingsActivity : Activity() {
             }
         )
         invertCurrent.isChecked = settings.getBoolean("invertCurrent", false)
+        showIndicator.isChecked = settings.getBoolean("showIndicator", true)
     }
 
     @SuppressLint("ApplySharedPref")
@@ -92,9 +96,14 @@ class SettingsActivity : Activity() {
                     else -> "W"
                 }
             )
+            .putBoolean("showIndicator", showIndicator.isChecked)
             .commit()
 
         sendBroadcast(Intent().setPackage(packageName).setAction(settingsUpdateInd))
+
+        // the service stops its own indicator when disabled, but must be started to show it
+        if (showIndicator.isChecked)
+            startForegroundService(Intent(this, StatusService::class.java))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,12 +118,30 @@ class SettingsActivity : Activity() {
         indicatorUnits = findViewById(R.id.indicatorUnits)
         invertCurrent = findViewById(R.id.invertCurrent)
         power = findViewById(R.id.power)
+        showIndicator = findViewById(R.id.showIndicator)
 
         loadPrefs()
 
         currentScalar.setOnCheckedChangeListener { _, _ -> onChange() }
         indicatorUnits.checkChangedCallback = { _ -> onChange() }
         invertCurrent.setOnCheckedChangeListener { _, _ -> onChange() }
+        showIndicator.setOnCheckedChangeListener { _, _ -> onChange() }
+    }
+
+    override fun onStart() {
+        debug("onStart()")
+
+        super.onStart()
+
+        bindService(Intent(this, StatusService::class.java), serviceConnection, BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        debug("onStop()")
+
+        unbindService(serviceConnection)
+
+        super.onStop()
     }
 
     override fun onPause() {

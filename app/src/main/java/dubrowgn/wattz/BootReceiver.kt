@@ -31,6 +31,12 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
+        val settings = context.getSharedPreferences(settingsName, Context.MODE_PRIVATE)
+        if (!settings.getBoolean("showIndicator", true)) {
+            debug("status bar indicator disabled")
+            return
+        }
+
         debug("starting status service...")
         try {
             context.startForegroundService(Intent(context, StatusService::class.java))

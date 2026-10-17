@@ -55,11 +55,41 @@
 
         <TextView
             style="@style/Label"
+            android:id="@+id/lblShowIndicator"
+            android:text="@string/showIndicator"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/lblIndicator" />
+
+        <TextView
+            android:id="@+id/showIndicatorDesc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="@dimen/text_size"
+            android:layout_marginVertical="@dimen/text_size_over_2"
+            android:text="@string/showIndicatorDesc"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toLeftOf="@+id/showIndicator"
+            app:layout_constraintTop_toBottomOf="@+id/lblShowIndicator" />
+
+        <Switch
+            android:id="@+id/showIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            android:layout_marginHorizontal="@dimen/text_size"
+            app:layout_constraintLeft_toRightOf="@+id/showIndicatorDesc"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/showIndicatorDesc"
+            app:layout_constraintBottom_toBottomOf="@+id/showIndicatorDesc"
+            tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+        <TextView
+            style="@style/Label"
             android:id="@+id/lblIndicatorValue"
             android:text="@string/units"
             app:layout_constraintLeft_toLeftOf="parent"
             app:layout_constraintRight_toLeftOf="@+id/lblCharging"
-            app:layout_constraintTop_toBottomOf="@+id/lblIndicator" />
+            app:layout_constraintTop_toBottomOf="@+id/showIndicatorDesc" />
 
         <dubrowgn.wattz.RadioLayout
             android:id="@+id/indicatorUnits"

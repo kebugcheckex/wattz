@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.*
 import android.graphics.drawable.Icon
+import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import java.time.LocalDateTime
@@ -17,10 +18,13 @@ import java.time.format.DateTimeFormatter
 class StatusService : Service() {
     private lateinit var battery: Battery
     private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    private var foreground = false
     private var indicatorUnits: String? = null
+    private val msgReceiver = MsgReceiver()
     private lateinit var noteBuilder: Notification.Builder
     private lateinit var noteMgr: NotificationManager
     private var pluggedInAt: ZonedDateTime? = null
+    private var showIndicator = true
     private lateinit var snapshot: BatterySnapshot
     private val task = PeriodicTask({ update() }, intervalMs)
 
@@ -37,6 +41,8 @@ class StatusService : Service() {
                 batteryDataReq -> updateData()
                 settingsUpdateInd -> {
                     loadSettings()
+                    if (!showIndicator)
+                        stopIndicator()
                     update()
                 }
                 Intent.ACTION_POWER_CONNECTED -> {
@@ -58,6 +64,16 @@ class StatusService : Service() {
         battery.currentScalar = settings.getFloat("currentScalar", 1f).toDouble()
         battery.invertCurrent = settings.getBoolean("invertCurrent", false)
         indicatorUnits = settings.getString("indicatorUnits", null);
+        showIndicator = settings.getBoolean("showIndicator", true)
+    }
+
+    private fun stopIndicator() {
+        debug("stopIndicator()")
+
+        // activities may still be bound, in which case we keep running without a notification
+        foreground = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun init() {
@@ -92,7 +108,7 @@ class StatusService : Service() {
             .setOnlyAlertOnce(true)
 
         registerReceiver(
-            MsgReceiver(),
+            msgReceiver,
             IntentFilter().apply {
                 addAction(batteryDataReq)
                 addAction(settingsUpdateInd)
@@ -105,20 +121,32 @@ class StatusService : Service() {
         )
     }
 
+    override fun onCreate() {
+        debug("onCreate()")
+
+        super.onCreate()
+
+        init()
+        loadSettings()
+        task.start()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         debug("onStartCommand()")
 
         super.onStartCommand(intent, flags, startId)
 
-        init()
-        loadSettings()
-        task.start()
-
+        // startForegroundService() requires startForeground(), even if we stop right away
         try {
             startForeground(noteId, noteBuilder.build())
+            foreground = true
         } catch (e: Exception) {
             error("Failed to foreground StatusService: ${e.message}")
         }
+
+        loadSettings()
+        if (!showIndicator)
+            stopIndicator()
 
         return START_STICKY;
     }
@@ -126,11 +154,15 @@ class StatusService : Service() {
     override fun onDestroy() {
         debug("onDestroy()")
 
+        task.stop()
+        unregisterReceiver(msgReceiver)
+
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+    // activities bind while visible so data keeps flowing when the indicator is disabled
+    override fun onBind(intent: Intent?): IBinder {
+        return Binder()
     }
 
     private fun renderIcon(value: String, unit: String): Icon {
@@ -236,7 +268,8 @@ class StatusService : Service() {
             }
         )
 
-        noteMgr.notify(noteId, noteBuilder.build())
+        if (foreground)
+            noteMgr.notify(noteId, noteBuilder.build())
 
         updateData()
     }

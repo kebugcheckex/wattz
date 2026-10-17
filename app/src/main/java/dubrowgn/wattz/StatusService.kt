@@ -27,6 +27,9 @@ class StatusService : Service() {
     private fun debug(msg: String) {
         Log.d(this::class.java.name, msg)
     }
+    private fun error(msg: String) {
+        Log.e(this::class.java.name, msg)
+    }
 
     private inner class MsgReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
